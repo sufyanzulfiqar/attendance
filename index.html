@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#1f3a5f">
+<title>AB Building and Co – Attendance</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Attendance">
+<style>
+  :root { --navy:#1f3a5f; --green:#1e9e4a; --red:#d93b30; --ot:#c25e00; --bg:#f2f4f7; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#1d1d1f; }
+  .wrap { max-width:480px; margin:0 auto; min-height:100vh; background:#fff; }
+  .top { background:var(--navy); color:#fff; padding:18px 18px 14px; }
+  .top h1 { margin:0; font-size:20px; }
+  .top small { display:block; opacity:.85; font-size:14px; margin-top:3px; }
+  .in { padding:18px; display:flex; flex-direction:column; gap:12px; }
+  label { font-size:14px; color:#555; }
+  input[type=time] { min-height:52px; -webkit-appearance:none; appearance:none; }
+  select, input { width:100%; border:1px solid #c9ced6; border-radius:10px; padding:13px; font-size:18px; background:#fafafa; font-family:inherit; }
+  button { font-family:inherit; cursor:pointer; }
+  .btn { width:100%; border:0; border-radius:14px; padding:20px; font-size:24px; font-weight:800; color:#fff; }
+  .btn:disabled { opacity:.5; }
+  .g { background:var(--green); } .r { background:var(--red); }
+  .b { background:var(--navy); font-size:18px; padding:15px; }
+  .ghost { background:#fff; color:var(--navy); border:1px solid #c9ced6; font-size:15px; padding:12px; border-radius:12px; font-weight:600; }
+  .st { background:#eef6ff; border-radius:10px; padding:12px; font-size:16px; }
+  .row { display:flex; justify-content:space-between; gap:10px; font-size:15px; padding:8px 0; border-bottom:1px solid #eee; }
+  .seg { display:flex; gap:8px; }
+  .seg button { flex:1; border:1px solid #c9ced6; border-radius:10px; padding:11px; font-size:16px; background:#fff; }
+  .seg button.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .ot { color:var(--ot); font-weight:700; }
+  .warn { color:var(--red); font-size:14px; line-height:1.5; }
+  .err { color:var(--red); font-size:15px; min-height:1em; }
+  .ok { color:var(--green); font-size:15px; }
+  .muted { color:#777; font-size:14px; }
+  .link { background:none; border:0; color:var(--navy); text-decoration:underline; font-size:14px; padding:4px 0; align-self:flex-start; }
+  .hide { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1 id="title">Attendance</h1><small id="sub">AB Building and Co</small></div>
+
+  <!-- Employee login -->
+  <div class="in hide" id="vLogin">
+    <label for="selName">Select your name</label>
+    <select id="selName"></select>
+    <label for="inPin">PIN (4 digits)</label>
+    <input id="inPin" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    <button class="btn b" id="bLogin">Login</button>
+    <div class="err" id="eLogin"></div>
+    <div class="muted">Your phone remembers you. No need to log in every day.</div>
+  </div>
+
+  <!-- Employee main -->
+  <div class="in hide" id="vMain">
+    <div class="st" id="stText"></div>
+    <div id="startBox" class="hide">
+      <label for="inStart">Start time (filled in automatically, you can change it)</label>
+      <input id="inStart" type="time">
+      <div style="height:12px"></div>
+      <button class="btn g" id="bStart">START</button>
+    </div>
+    <div id="finishBox" class="hide">
+      <label for="inFinish" id="lblFinish">Finish time</label>
+      <input id="inFinish" type="time">
+      <div style="height:12px"></div>
+      <label>Break taken?</label>
+      <div class="seg" id="segBreak">
+        <button data-m="0">None</button><button data-m="30" class="on">30 min</button><button data-m="60">60 min</button>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn r" id="bFinish">FINISH</button>
+    </div>
+    <div class="err" id="eMain"></div>
+    <div class="ok" id="okMain"></div>
+    <div>
+      <div class="row"><b>This week</b><b id="wkTotal"></b></div>
+      <div id="wkDays"></div>
+    </div>
+    <button class="link" id="bLogout">Not you? Log out</button>
+  </div>
+
+  <!-- Owner login -->
+  <div class="in hide" id="vOwnerLogin">
+    <label for="inOwnerPin">Owner PIN</label>
+    <input id="inOwnerPin" type="password" inputmode="numeric" maxlength="12" autocomplete="off">
+    <button class="btn b" id="bOwnerLogin">Open</button>
+    <div class="err" id="eOwner"></div>
+  </div>
+
+  <!-- Owner week -->
+  <div class="in hide" id="vOwner">
+    <div class="row"><b>Name</b><b>Hours</b></div>
+    <div id="oRows"></div>
+    <div class="warn" id="oWarn"></div>
+    <div class="row"><b>Total</b><b id="oTotal"></b></div>
+    <div class="seg"><button id="bPrev">◀ Prev week</button><button id="bNext">Next ▶</button></div>
+    <button class="btn b" id="bTest">Email me this report now</button>
+    <div class="muted" id="oMsg"></div>
+  </div>
+</div>
+
+<script>
+/* The Google Apps Script web app (data stays in the owner's Google Sheet). */
+var API = 'https://script.google.com/macros/s/AKfycbyLKDyBkj1x1e7T37T8Uyx6IuKzh4NwsB8XKRwNWukFbmCUHeNT6LrOA1DFSkVdzqJ5DA/exec';
+var MODE = /[?&]owner=1(&|$)/.test(location.search) ? 'owner' : 'staff';
+var KEY = 'crewAttendance.v1';
+var me = null, ownerPin = null, weekOffset = 0, breakMin = 30;
+
+function $(id) { return document.getElementById(id); }
+function show(id) { ['vLogin','vMain','vOwnerLogin','vOwner'].forEach(function (v) { $(v).classList.toggle('hide', v !== id); }); }
+function store(v) { try { if (v) localStorage.setItem(KEY, JSON.stringify(v)); else localStorage.removeItem(KEY); } catch (e) {} }
+function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
+function nowHHMM() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+function h1(n) { return (Math.round(n * 100) / 100).toFixed(2) + ' h'; }
+var touched = { inStart: false, inFinish: false }, forgot = false, confirmLong = false;
+function clearMsgs() { ['eLogin','eMain','eOwner'].forEach(function (i) { $(i).textContent = ''; }); $('okMain').textContent = ''; }
+
+/* Calls the server. text/plain keeps it a "simple" request (no CORS preflight), and no Google cookies are sent,
+   so it works in any browser no matter how many Google accounts are signed in. */
+function api(fn, args, ok, fail) {
+  fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args || [] }), credentials: 'omit', redirect: 'follow' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.ok) ok(d.res); else fail({ message: (d && d.error) || '' }); })
+    .catch(function () { fail({ message: '' }); });
+}
+function call(fn, args, ok, errEl, btn) {
+  if (btn) btn.disabled = true;
+  api(fn, args,
+    function (res) { if (btn) btn.disabled = false; ok(res); },
+    function (e) { if (btn) btn.disabled = false; $(errEl).textContent = (e && e.message) || 'Something went wrong. Check your internet and try again.'; });
+}
+
+/* ---------- Employee ---------- */
+function renderStatus(s) {
+  $('title').textContent = 'Hi ' + s.name;
+  $('sub').textContent = s.todayLabel;
+  var open = !!s.open;
+  $('stText').innerHTML = '';
+  if (open) {
+    $('stText').append('Started at: ');
+    var b = document.createElement('b'); b.textContent = s.open.start + (s.open.label !== s.todayLabel ? ' (' + s.open.label + ')' : ''); $('stText').append(b);
+  } else {
+    $('stText').textContent = 'Not started yet';
+  }
+  $('startBox').classList.toggle('hide', open);
+  $('finishBox').classList.toggle('hide', !open);
+  forgot = open && s.open.forgot;
+  confirmLong = false; $('bFinish').textContent = 'FINISH';
+  touched.inStart = false; touched.inFinish = false;
+  $('lblFinish').textContent = forgot ? 'You forgot to press FINISH on ' + s.open.label + '. What time did you finish that day?' : 'Finish time';
+  $('inStart').value = nowHHMM();
+  $('inFinish').value = forgot ? '' : nowHHMM();
+  $('wkTotal').textContent = h1(s.week.total);
+  var box = $('wkDays'); box.innerHTML = '';
+  s.week.days.forEach(function (d) {
+    var r = document.createElement('div'); r.className = 'row';
+    var a = document.createElement('span'); a.textContent = d.label + '  ' + d.start + ' – ' + (d.finish || '…');
+    var c = document.createElement('span'); c.textContent = d.finish ? h1(d.hours) : 'working';
+    r.append(a, c); box.append(r);
+  });
+  show('vMain');
+}
+
+function refresh() { call('getMyStatus', [me.name, me.pin], renderStatus, 'eMain'); }
+
+/* Keep the pre-filled time current until the employee changes it themselves */
+['inStart', 'inFinish'].forEach(function (id) {
+  $(id).addEventListener('input', function () { touched[id] = true; if (confirmLong) { confirmLong = false; $('bFinish').textContent = 'FINISH'; $('eMain').textContent = ''; } });
+});
+function tickTimes() {
+  if (!touched.inStart) $('inStart').value = nowHHMM();
+  if (!touched.inFinish && !forgot) $('inFinish').value = nowHHMM();
+}
+setInterval(tickTimes, 20000);
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) return;
+  tickTimes();
+  if (me && !$('vMain').classList.contains('hide') && !touched.inStart && !touched.inFinish && !confirmLong) refresh();
+});
+window.addEventListener('focus', tickTimes);
+/* '' = let the server use the real time now */
+function timeToSend(id) { return (touched[id] || (id === 'inFinish' && forgot)) ? $(id).value : ''; }
+function mins(t) { var p = (t || '').split(':'); return p.length < 2 ? NaN : (+p[0]) * 60 + (+p[1]); }
+
+$('bLogin').onclick = function () {
+  clearMsgs();
+  var name = $('selName').value, pin = $('inPin').value.trim();
+  if (!name || !pin) { $('eLogin').textContent = 'Please select your name and enter your PIN.'; return; }
+  call('login', [name, pin], function (s) { me = { name: name, pin: s.cred }; store(me); renderStatus(s); }, 'eLogin', this);
+};
+$('bStart').onclick = function () {
+  clearMsgs();
+  if (touched.inStart && !$('inStart').value) { $('eMain').textContent = 'Please enter your start time.'; return; }
+  call('clockIn', [me.name, me.pin, timeToSend('inStart')], function (s) { renderStatus(s); $('okMain').textContent = 'Started. Have a safe day!'; }, 'eMain', this);
+};
+$('bFinish').onclick = function () {
+  clearMsgs();
+  var fin = $('inFinish').value;
+  if (!fin) { $('eMain').textContent = 'Please enter your finish time.'; return; }
+  var startEl = $('stText').querySelector('b');
+  var st = startEl ? startEl.textContent.slice(0, 5) : '';
+  var worked = mins(fin) - mins(st); if (worked < 0) worked += 1440; worked -= breakMin;
+  if (worked > 14 * 60 && !confirmLong) {
+    confirmLong = true;
+    $('eMain').textContent = 'That is ' + (worked / 60).toFixed(1) + ' hours (' + st + ' to ' + fin + '). Please check the time. If it is correct, press FINISH again.';
+    $('bFinish').textContent = 'YES, FINISH';
+    return;
+  }
+  confirmLong = false; $('bFinish').textContent = 'FINISH';
+  call('clockOut', [me.name, me.pin, timeToSend('inFinish'), breakMin], function (s) {
+    renderStatus(s);
+    $('okMain').textContent = 'Finished. Hours: ' + h1(s.finishedHours || 0);
+  }, 'eMain', this);
+};
+Array.prototype.forEach.call(document.querySelectorAll('#segBreak button'), function (b) {
+  b.onclick = function () {
+    breakMin = Number(b.getAttribute('data-m'));
+    Array.prototype.forEach.call(document.querySelectorAll('#segBreak button'), function (x) { x.classList.toggle('on', x === b); });
+  };
+});
+$('bLogout').onclick = function () { store(null); me = null; $('inPin').value = ''; $('title').textContent = 'Attendance'; startStaff(); };
+
+function startStaff() {
+  call('getAppInfo', [], function (info) {
+    $('title').textContent = 'Attendance';
+    $('sub').textContent = info.company;
+    var sel = $('selName'); sel.innerHTML = '';
+    var o0 = document.createElement('option'); o0.value = ''; o0.textContent = '— choose —'; sel.append(o0);
+    info.names.forEach(function (n) { var o = document.createElement('option'); o.value = n; o.textContent = n; sel.append(o); });
+    var saved = load();
+    if (saved && info.names.indexOf(saved.name) >= 0) {
+      me = saved;
+      api('getMyStatus', [me.name, me.pin], renderStatus, function (e) {
+        var msg = (e && e.message) || '';
+        if (/Wrong name or PIN/.test(msg)) { store(null); me = null; $('eLogin').textContent = 'Please log in again.'; }
+        else $('eLogin').textContent = msg || 'Something went wrong. Check your internet and try again.';
+        show('vLogin');
+      });
+    } else {
+      show('vLogin');
+    }
+  }, 'eLogin');
+  show('vLogin');
+}
+
+/* ---------- Owner ---------- */
+function renderWeek(w) {
+  weekOffset = w.offset;
+  $('title').textContent = 'Weekly hours';
+  $('sub').textContent = (w.company || 'AB Building and Co') + ' · ' + w.label;
+  var box = $('oRows'); box.innerHTML = '';
+  var warns = [];
+  w.rows.forEach(function (p) {
+    var r = document.createElement('div'); r.className = 'row';
+    var a = document.createElement('span'); a.textContent = p.name;
+    var c = document.createElement('span'); c.textContent = h1(p.hours) + ' ';
+    if (p.ot > 0) { var o = document.createElement('span'); o.className = 'ot'; o.textContent = '(+' + h1(p.ot).replace(' h', '') + ' OT)'; c.append(o); }
+    r.append(a, c); box.append(r);
+    p.warnings.forEach(function (x) { warns.push('⚠ ' + p.name + ': ' + x); });
+  });
+  (w.problems || []).forEach(function (x) { warns.push('⚠ ' + x); });
+  $('oWarn').textContent = ''; warns.forEach(function (x) { var d = document.createElement('div'); d.textContent = x; $('oWarn').append(d); });
+  $('oTotal').textContent = h1(w.total);
+  $('bNext').disabled = w.offset === 0;
+  show('vOwner');
+}
+function loadWeek(off) { $('oMsg').textContent = 'Loading…'; call('getOwnerWeek', [ownerPin, off], function (w) { $('oMsg').textContent = ''; renderWeek(w); }, 'oMsg'); }
+$('bOwnerLogin').onclick = function () {
+  clearMsgs();
+  var p = $('inOwnerPin').value.trim();
+  call('getOwnerWeek', [p, 0], function (w) { ownerPin = p; renderWeek(w); }, 'eOwner', this);
+};
+$('bPrev').onclick = function () { loadWeek(weekOffset + 1); };
+$('bNext').onclick = function () { if (weekOffset > 0) loadWeek(weekOffset - 1); };
+$('bTest').onclick = function () {
+  $('oMsg').textContent = 'Sending…';
+  call('sendReportNow', [ownerPin, weekOffset], function () { $('oMsg').textContent = 'Email sent. Check your inbox (and Spam the first time).'; }, 'oMsg', this);
+};
+
+if (MODE === 'owner') { $('title').textContent = 'Owner'; $('sub').textContent = 'AB Building and Co · Weekly hours'; show('vOwnerLogin'); }
+else startStaff();
+</script>
+</body>
+</html>
