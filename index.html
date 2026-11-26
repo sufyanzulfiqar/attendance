@@ -124,7 +124,9 @@ function show(id) { ['vLogin','vMain','vOwnerLogin','vOwner'].forEach(function (
 function store(v) { try { if (v) localStorage.setItem(KEY, JSON.stringify(v)); else localStorage.removeItem(KEY); } catch (e) {} }
 function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
 function nowHHMM() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
-function h1(n) { return (Math.round(n * 100) / 100).toFixed(2) + ' h'; }
+/* Hours as hours:minutes, e.g. 8.5 -> "8:30" (8 hours 30 minutes) */
+function hm(n) { var m = Math.max(0, Math.round((Number(n) || 0) * 60)); return Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2); }
+function h1(n) { return hm(n) + ' h'; }
 var touched = { inStart: false, inFinish: false }, forgot = false, confirmLong = false;
 function clearMsgs() { ['eLogin','eMain','eOwner'].forEach(function (i) { $(i).textContent = ''; }); $('okMain').textContent = ''; }
 
@@ -263,7 +265,7 @@ function renderWeek(w) {
   $('sub').textContent = (w.company || 'AB Building and Co') + ' · ' + w.label;
   var box = $('oRows'); box.innerHTML = '';
   var warns = [];
-  function n2(v) { return (Math.round((v || 0) * 100) / 100).toFixed(2); }
+  var n2 = hm;
   w.rows.forEach(function (p) {
     var r = document.createElement('tr');
     [p.name, n2(p.normal), p.ot > 0 ? n2(p.ot) : '–', n2(p.hours)].forEach(function (v, i) {
@@ -274,7 +276,7 @@ function renderWeek(w) {
   });
   $('oNormal').textContent = n2(w.totalNormal);
   $('oOt').textContent = n2(w.totalOt);
-  $('oNote').textContent = 'OT = hours over ' + w.otAfter + ' h in a day. Hours are decimal: 8.50 = 8 h 30 min.';
+  $('oNote').textContent = 'OT = time over ' + w.otAfter + ' hours in a day. Times are hours:minutes (8:30 = 8 hours 30 minutes).';
   (w.problems || []).forEach(function (x) { warns.push('⚠ ' + x); });
   $('oWarn').textContent = ''; warns.forEach(function (x) { var d = document.createElement('div'); d.textContent = x; $('oWarn').append(d); });
   $('oTotal').textContent = n2(w.total);
