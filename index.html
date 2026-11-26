@@ -38,6 +38,11 @@
   .muted { color:#777; font-size:14px; }
   .link { background:none; border:0; color:var(--navy); text-decoration:underline; font-size:14px; padding:4px 0; align-self:flex-start; }
   .hide { display:none !important; }
+  .tbl { width:100%; border-collapse:collapse; font-size:15px; }
+  .tbl th, .tbl td { padding:9px 4px; border-bottom:1px solid #eee; text-align:right; white-space:nowrap; }
+  .tbl th:first-child, .tbl td:first-child { text-align:left; white-space:normal; }
+  .tbl thead th { color:#555; font-size:13px; }
+  .tbl tfoot th { background:#f2f4f7; border-top:2px solid #c9ced6; }
 </style>
 </head>
 <body>
@@ -94,10 +99,13 @@
 
   <!-- Owner week -->
   <div class="in hide" id="vOwner">
-    <div class="row"><b>Name</b><b>Hours</b></div>
-    <div id="oRows"></div>
+    <table class="tbl">
+      <thead><tr><th>Name</th><th>Normal</th><th>OT</th><th>Total</th></tr></thead>
+      <tbody id="oRows"></tbody>
+      <tfoot><tr><th>All staff</th><th id="oNormal"></th><th id="oOt" class="ot"></th><th id="oTotal"></th></tr></tfoot>
+    </table>
+    <div class="muted" id="oNote"></div>
     <div class="warn" id="oWarn"></div>
-    <div class="row"><b>Total</b><b id="oTotal"></b></div>
     <div class="seg"><button id="bPrev">◀ Prev week</button><button id="bNext">Next ▶</button></div>
     <button class="btn b" id="bTest">Email me this report now</button>
     <div class="muted" id="oMsg"></div>
@@ -255,17 +263,21 @@ function renderWeek(w) {
   $('sub').textContent = (w.company || 'AB Building and Co') + ' · ' + w.label;
   var box = $('oRows'); box.innerHTML = '';
   var warns = [];
+  function n2(v) { return (Math.round((v || 0) * 100) / 100).toFixed(2); }
   w.rows.forEach(function (p) {
-    var r = document.createElement('div'); r.className = 'row';
-    var a = document.createElement('span'); a.textContent = p.name;
-    var c = document.createElement('span'); c.textContent = h1(p.hours) + ' ';
-    if (p.ot > 0) { var o = document.createElement('span'); o.className = 'ot'; o.textContent = '(+' + h1(p.ot).replace(' h', '') + ' OT)'; c.append(o); }
-    r.append(a, c); box.append(r);
+    var r = document.createElement('tr');
+    [p.name, n2(p.normal), p.ot > 0 ? n2(p.ot) : '–', n2(p.hours)].forEach(function (v, i) {
+      var td = document.createElement('td'); td.textContent = v; if (i === 2 && p.ot > 0) td.className = 'ot'; r.append(td);
+    });
+    box.append(r);
     p.warnings.forEach(function (x) { warns.push('⚠ ' + p.name + ': ' + x); });
   });
+  $('oNormal').textContent = n2(w.totalNormal);
+  $('oOt').textContent = n2(w.totalOt);
+  $('oNote').textContent = 'OT = hours over ' + w.otAfter + ' h in a day. Hours are decimal: 8.50 = 8 h 30 min.';
   (w.problems || []).forEach(function (x) { warns.push('⚠ ' + x); });
   $('oWarn').textContent = ''; warns.forEach(function (x) { var d = document.createElement('div'); d.textContent = x; $('oWarn').append(d); });
-  $('oTotal').textContent = h1(w.total);
+  $('oTotal').textContent = n2(w.total);
   $('bNext').disabled = w.offset === 0;
   show('vOwner');
 }
