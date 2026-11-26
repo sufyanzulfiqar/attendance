@@ -43,6 +43,10 @@
   .tbl th:first-child, .tbl td:first-child { text-align:left; white-space:normal; }
   .tbl thead th { color:#555; font-size:13px; }
   .tbl tfoot th { background:#f2f4f7; border-top:2px solid #c9ced6; }
+  .dh { font-size:17px; font-weight:800; color:var(--navy); margin-top:6px; }
+  .dn { font-weight:700; color:var(--navy); margin:12px 0 2px; }
+  .dd { padding:8px 0; border-bottom:1px solid #eee; font-size:15px; line-height:1.45; }
+  .dd small { display:block; color:#666; font-size:13px; }
 </style>
 </head>
 <body>
@@ -100,12 +104,16 @@
   <!-- Owner week -->
   <div class="in hide" id="vOwner">
     <table class="tbl">
-      <thead><tr><th>Name</th><th>Normal</th><th>OT</th><th>Total</th></tr></thead>
+      <thead><tr><th>Name</th><th>Normal</th><th>Overtime</th><th>Total</th></tr></thead>
       <tbody id="oRows"></tbody>
       <tfoot><tr><th>All staff</th><th id="oNormal"></th><th id="oOt" class="ot"></th><th id="oTotal"></th></tr></tfoot>
     </table>
     <div class="muted" id="oNote"></div>
     <div class="warn" id="oWarn"></div>
+    <div id="oDaysWrap" class="hide">
+      <div class="dh">Day by day</div>
+      <div id="oDays"></div>
+    </div>
     <div class="seg"><button id="bPrev">◀ Prev week</button><button id="bNext">Next ▶</button></div>
     <button class="btn b" id="bTest">Email me this report now</button>
     <div class="muted" id="oMsg"></div>
@@ -124,9 +132,13 @@ function show(id) { ['vLogin','vMain','vOwnerLogin','vOwner'].forEach(function (
 function store(v) { try { if (v) localStorage.setItem(KEY, JSON.stringify(v)); else localStorage.removeItem(KEY); } catch (e) {} }
 function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
 function nowHHMM() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
-/* Hours as hours:minutes, e.g. 8.5 -> "8:30" (8 hours 30 minutes) */
-function hm(n) { var m = Math.max(0, Math.round((Number(n) || 0) * 60)); return Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2); }
-function h1(n) { return hm(n) + ' h'; }
+/* Hours as easy text, e.g. 8.5 -> "8h 30m", 8 -> "8h", 0.5 -> "30m" */
+function hm(n) {
+  var m = Math.max(0, Math.round((Number(n) || 0) * 60)), h = Math.floor(m / 60), r = m % 60;
+  if (!h && !r) return '0h';
+  return (h ? h + 'h' : '') + (h && r ? ' ' : '') + (r ? r + 'm' : '');
+}
+function h1(n) { return hm(n); }
 var touched = { inStart: false, inFinish: false }, forgot = false, confirmLong = false;
 function clearMsgs() { ['eLogin','eMain','eOwner'].forEach(function (i) { $(i).textContent = ''; }); $('okMain').textContent = ''; }
 
@@ -276,7 +288,26 @@ function renderWeek(w) {
   });
   $('oNormal').textContent = n2(w.totalNormal);
   $('oOt').textContent = n2(w.totalOt);
-  $('oNote').textContent = 'OT = time over ' + w.otAfter + ' hours in a day. Times are hours:minutes (8:30 = 8 hours 30 minutes).';
+  $('oNote').textContent = 'Overtime = time over ' + w.otAfter + ' hours in one day.';
+  var dbox = $('oDays'); dbox.innerHTML = ''; var anyDays = false;
+  w.rows.forEach(function (p) {
+    if (!p.dayList || !p.dayList.length) return;
+    anyDays = true;
+    var n = document.createElement('div'); n.className = 'dn'; n.textContent = p.name; dbox.append(n);
+    p.dayList.forEach(function (d) {
+      var r = document.createElement('div'); r.className = 'dd';
+      var top = document.createElement('div');
+      top.append(d.label + ':  ');
+      var b = document.createElement('b'); b.textContent = hm(d.hours); top.append(b);
+      if (d.ot > 0) {
+        top.append('  (Normal ' + hm(d.normal) + ' + ');
+        var o = document.createElement('span'); o.className = 'ot'; o.textContent = 'Overtime ' + hm(d.ot); top.append(o, ')');
+      }
+      var sm = document.createElement('small'); sm.textContent = d.times;
+      r.append(top, sm); dbox.append(r);
+    });
+  });
+  $('oDaysWrap').classList.toggle('hide', !anyDays);
   (w.problems || []).forEach(function (x) { warns.push('⚠ ' + x); });
   $('oWarn').textContent = ''; warns.forEach(function (x) { var d = document.createElement('div'); d.textContent = x; $('oWarn').append(d); });
   $('oTotal').textContent = n2(w.total);
