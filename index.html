@@ -47,6 +47,9 @@
   .dn { font-weight:700; color:var(--navy); margin:12px 0 2px; }
   .dd { padding:8px 0; border-bottom:1px solid #eee; font-size:15px; line-height:1.45; }
   .dd small { display:block; color:#666; font-size:13px; }
+  .card { border:1px solid #c9ced6; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px; background:#fafbfc; }
+  .card h3 { margin:0; font-size:17px; color:var(--navy); }
+  .two { display:flex; gap:10px; } .two > div { flex:1; min-width:0; }
 </style>
 </head>
 <body>
@@ -86,6 +89,30 @@
     </div>
     <div class="err" id="eMain"></div>
     <div class="ok" id="okMain"></div>
+    <!-- Forgot a past day -->
+    <button class="ghost" id="bPastOpen">Forgot a day? Add it here</button>
+    <div class="card hide" id="pastBox">
+      <h3>Add a day you missed</h3>
+      <div class="muted" id="pastInfo"></div>
+      <div id="pastForm">
+        <label for="pDay">Which day?</label>
+        <select id="pDay"></select>
+        <div style="height:10px"></div>
+        <div class="two">
+          <div><label for="pStart">Start time</label><input id="pStart" type="time"></div>
+          <div><label for="pFinish">Finish time</label><input id="pFinish" type="time"></div>
+        </div>
+        <div style="height:10px"></div>
+        <label>Break taken?</label>
+        <div class="seg" data-break="30" id="pBreak">
+          <button data-m="0">None</button><button data-m="30" class="on">30 min</button><button data-m="60">60 min</button>
+        </div>
+        <div style="height:12px"></div>
+        <button class="btn b" id="bPastSave">Save this day</button>
+      </div>
+      <div class="err" id="ePast"></div>
+      <button class="link" id="bPastClose">Close</button>
+    </div>
     <div>
       <div class="row"><b>This week</b><b id="wkTotal"></b></div>
       <div id="wkDays"></div>
@@ -115,6 +142,27 @@
       <div id="oDays"></div>
     </div>
     <div class="seg"><button id="bPrev">◀ Prev week</button><button id="bNext">Next ▶</button></div>
+    <!-- Owner: add or fix a day for anyone -->
+    <div class="card" id="fixBox">
+      <h3>Add or fix a day</h3>
+      <div class="muted">For the week shown above. This replaces any time already saved for that person on that day.</div>
+      <label for="fName">Employee</label>
+      <select id="fName"></select>
+      <label for="fDay">Day</label>
+      <select id="fDay"></select>
+      <div class="muted" id="fNow"></div>
+      <div class="two">
+        <div><label for="fStart">Start time</label><input id="fStart" type="time"></div>
+        <div><label for="fFinish">Finish time</label><input id="fFinish" type="time"></div>
+      </div>
+      <label>Break taken?</label>
+      <div class="seg" data-break="30" id="fBreak">
+        <button data-m="0">None</button><button data-m="30" class="on">30 min</button><button data-m="60">60 min</button>
+      </div>
+      <button class="btn b" id="bFixSave">Save</button>
+      <div class="err" id="eFix"></div>
+      <div class="ok" id="okFix"></div>
+    </div>
     <button class="btn b" id="bTest">Email me this report now</button>
     <div class="muted" id="oMsg"></div>
   </div>
@@ -177,6 +225,7 @@ function renderStatus(s) {
   $('lblFinish').textContent = forgot ? 'You forgot to press FINISH on ' + s.open.label + '. What time did you finish that day?' : 'Finish time';
   $('inStart').value = nowHHMM();
   $('inFinish').value = forgot ? '' : nowHHMM();
+  renderPast(s);
   $('wkTotal').textContent = h1(s.week.total);
   var box = $('wkDays'); box.innerHTML = '';
   s.week.days.forEach(function (d) {
@@ -187,6 +236,51 @@ function renderStatus(s) {
   });
   show('vMain');
 }
+
+/* ---------- Forgot a past day (employee) ---------- */
+function segVal(id) { return Number($(id).getAttribute('data-break')); }
+function hookSeg(id) {
+  Array.prototype.forEach.call(document.querySelectorAll('#' + id + ' button'), function (b) {
+    b.onclick = function () {
+      $(id).setAttribute('data-break', b.getAttribute('data-m'));
+      Array.prototype.forEach.call(document.querySelectorAll('#' + id + ' button'), function (x) { x.classList.toggle('on', x === b); });
+    };
+  });
+}
+hookSeg('pBreak'); hookSeg('fBreak');
+function fillSelect(sel, items, firstText) {
+  var keep = sel.value; sel.innerHTML = '';
+  if (firstText) { var o0 = document.createElement('option'); o0.value = ''; o0.textContent = firstText; sel.append(o0); }
+  items.forEach(function (it) { var o = document.createElement('option'); o.value = it.value; o.textContent = it.text; sel.append(o); });
+  if (items.some(function (it) { return it.value === keep; })) sel.value = keep;
+}
+function renderPast(s) {
+  var p = s.past || { open: false, days: [], note: '' };
+  var days = p.days || [];
+  fillSelect($('pDay'), days.map(function (d) { return { value: d.date, text: d.label }; }), days.length > 1 ? '— choose a day —' : '');
+  var info = p.note || '';
+  if (p.open && !days.length) info = 'Every day this week already has a time. ' + info;
+  $('pastInfo').textContent = info;
+  $('pastForm').classList.toggle('hide', !p.open || !days.length);
+}
+$('bPastOpen').onclick = function () { $('pastBox').classList.remove('hide'); $('bPastOpen').classList.add('hide'); $('ePast').textContent = ''; };
+$('bPastClose').onclick = function () { $('pastBox').classList.add('hide'); $('bPastOpen').classList.remove('hide'); };
+$('bPastSave').onclick = function () {
+  clearMsgs(); $('ePast').textContent = '';
+  var day = $('pDay').value, st = $('pStart').value, fi = $('pFinish').value;
+  if (!day) { $('ePast').textContent = 'Please choose the day.'; return; }
+  if (!st || !fi) { $('ePast').textContent = 'Please enter both start and finish time.'; return; }
+  var worked = mins(fi) - mins(st); if (worked <= 0) worked += 1440; worked -= segVal('pBreak');
+  if (worked <= 0) { $('ePast').textContent = 'Please check the times.'; return; }
+  var label = $('pDay').options[$('pDay').selectedIndex].textContent;
+  if (!confirm('Save ' + label + ': ' + st + ' to ' + fi + ' (' + hm(worked / 60) + ')?\nYou cannot change it later.')) return;
+  call('addPastDay', [me.name, me.pin, day, st, fi, segVal('pBreak')], function (s) {
+    $('pStart').value = ''; $('pFinish').value = '';
+    renderStatus(s);
+    $('pastBox').classList.add('hide'); $('bPastOpen').classList.remove('hide');
+    $('okMain').textContent = 'Saved ' + label + ': ' + h1(s.savedHours || 0);
+  }, 'ePast', this);
+};
 
 function refresh() { call('getMyStatus', [me.name, me.pin], renderStatus, 'eMain'); }
 
@@ -312,8 +406,44 @@ function renderWeek(w) {
   $('oWarn').textContent = ''; warns.forEach(function (x) { var d = document.createElement('div'); d.textContent = x; $('oWarn').append(d); });
   $('oTotal').textContent = n2(w.total);
   $('bNext').disabled = w.offset === 0;
+  renderFix(w);
   show('vOwner');
 }
+/* ---------- Owner: add or fix a day ---------- */
+var lastWeek = null;
+function renderFix(w) {
+  lastWeek = w;
+  fillSelect($('fName'), (w.names || []).map(function (n) { return { value: n, text: n }; }), '— choose —');
+  fillSelect($('fDay'), (w.dates || []).map(function (d) { return { value: d.date, text: d.label }; }), '— choose —');
+  showFixNow();
+}
+function showFixNow() {
+  var n = $('fName').value, d = $('fDay').value, txt = '';
+  if (n && d && lastWeek) {
+    lastWeek.rows.forEach(function (p) {
+      if (p.name !== n) return;
+      (p.dayList || []).forEach(function (x) { if (x.date === d) txt = 'Saved now: ' + x.times + ' (' + hm(x.hours) + ')'; });
+    });
+    if (!txt) txt = 'Nothing saved for this day yet.';
+  }
+  $('fNow').textContent = txt;
+}
+$('fName').onchange = showFixNow; $('fDay').onchange = showFixNow;
+$('bFixSave').onclick = function () {
+  $('eFix').textContent = ''; $('okFix').textContent = '';
+  var n = $('fName').value, d = $('fDay').value, st = $('fStart').value, fi = $('fFinish').value;
+  if (!n || !d) { $('eFix').textContent = 'Please choose the employee and the day.'; return; }
+  if (!st || !fi) { $('eFix').textContent = 'Please enter both start and finish time.'; return; }
+  var worked = mins(fi) - mins(st); if (worked <= 0) worked += 1440; worked -= segVal('fBreak');
+  if (worked <= 0) { $('eFix').textContent = 'Please check the times.'; return; }
+  var label = $('fDay').options[$('fDay').selectedIndex].textContent;
+  if (!confirm('Save for ' + n + ', ' + label + ': ' + st + ' to ' + fi + ' (' + hm(worked / 60) + ')?')) return;
+  call('ownerSetDay', [ownerPin, n, d, st, fi, segVal('fBreak'), weekOffset], function (w) {
+    $('fStart').value = ''; $('fFinish').value = '';
+    renderWeek(w);
+    $('okFix').textContent = 'Saved for ' + n + ', ' + label + '.';
+  }, 'eFix', this);
+};
 function loadWeek(off) { $('oMsg').textContent = 'Loading…'; call('getOwnerWeek', [ownerPin, off], function (w) { $('oMsg').textContent = ''; renderWeek(w); }, 'oMsg'); }
 $('bOwnerLogin').onclick = function () {
   clearMsgs();
